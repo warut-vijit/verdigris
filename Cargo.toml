@@ -1,0 +1,8 @@
+[package]
+name = "verdigris"
+version = "0.1.0"
+authors = ["warut-vijit <warut.vijitbenjaronk@gmail.com>"]
+
+[dependencies]
+ndarray = "0.11.0"
+threadpool = "1.7.1"
