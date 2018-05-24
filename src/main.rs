@@ -6,8 +6,9 @@ use std::env;
 use std::io::Read;
 use std::fs::File;
 use std::sync::mpsc::channel;
-use nd::{Array1, Array2, ArrayView1, Dim};
+use nd::{Array1, Array2, ArrayView1, ArrayView2, Dim};
 
+static STEADY_STEPS : u32 = 25;
 static NUM_STATE : usize = 61;
 static NUM_INPUT : usize = 41;
 
@@ -35,13 +36,17 @@ fn squash(v : &Array1<f32>) -> Array1<f32> {
     v.mapv(sq_clos)
 }
 
-// Applies one RNN iteration to a 1D ndarray
-fn rnn_step(m : &Array2<f32>, v : &Array1<f32>) -> Array1<f32> {
-    let lin = m.dot(v);
-    squash(&lin)
-}
-fn rnn_forward(m : &Array2<f32>, its : u32) -> Array1<f32> {
-    // TODO: next
+// Applies RNN to drug input and network 
+fn rnn_forward(m : &Array2<f32>, i : &Array1<f32>, its : u32) -> Array1<f32> {
+    let mut state = Array1::zeros(NUM_STATE);
+    let i2s : ArrayView2<f32> = m.slice(s![.., ..NUM_INPUT]);
+    let s2s : ArrayView2<f32> = m.slice(s![.., NUM_INPUT..]);
+    let icontrib : Array1<f32> = i2s.dot(i);
+    for _iter in 0..its {
+        let lin = s2s.dot(&state) + &icontrib;
+        state = squash(&lin);
+    }
+    state
 }
 
 fn main() {
@@ -51,24 +56,14 @@ fn main() {
 
     let weight_mat_dim = Dim([NUM_STATE, NUM_INPUT + NUM_STATE]);
     let weight_mat : Array2<f32> = read_csv(&cmd[1], weight_mat_dim);
-    println!("weight matrix: {}", weight_mat);
+    println!("weight matrix from {}: {:?}", &cmd[1], weight_mat.shape());
 
-    let a = Array2::from_elem((5, 4), 3.);
-    let b = Array1::from_elem(4, 2.);
-    let b = squash(&b);
-    let c : Array1<f32> = a.dot(&b);
-    let c = squash(&c);
-    let bcopy = rnn_step(&a, &b);
-    assert!(bcopy == c);
-    let d = Array2::from_shape_vec((2, 2), vec![1., 2., 3., 4.]).unwrap();
-    println!("{:?}, {:?}", a, d);
-    let e : ArrayView1<f32> = d.slice(s![0, ..]);
-    let f : ArrayView1<f32> = d.slice(s![.., 1]);
-
-    println!("a is ok: {:?}", a.shape());
-    println!("a: {}", a);
-    println!("{}, {}", a, b);
-    println!("Dot product: {}", c);
-    println!("Slice [0, ..]: {}", e);
-    println!("Slice [.., 1]: {}", f);
+    let mut ssri : Array1<f32> = Array1::zeros(NUM_INPUT);
+    ssri[0] = 1.;
+    ssri[40] = 1.;
+    println!("drug input sized {:?}: {}", ssri.shape(), &ssri);
+    let ss : Array1<f32> = rnn_forward(&weight_mat, &ssri, STEADY_STEPS);
+    println!("ss sized {:?}: {}", ss.shape(), &ss);
+    let amines : ArrayView1<f32> = ss.slice(s![23..26]);
+    println!("amines {}", &amines);
 }
